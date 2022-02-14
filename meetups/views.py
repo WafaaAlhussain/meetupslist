@@ -1,21 +1,37 @@
-from django.shortcuts import render
-
+import email
+import re
+from django.shortcuts import render, redirect
+from .models import *
+from .forms import *
 # Create your views here.
 
 
 def index(request):
-    meetups = [
-        {'title': 'A First Meetup', 'location': 'Tokyo', 'slug': 'a-first-meeting'},
-        {'title': 'A Second Meetup', 'location': 'England', 'slug': 'a-second-meeting'},
-        {'title': 'A Third Meetup', 'location': 'Istanbul', 'slug': 'a-third-meeting'}
-    ]
+    meetups = Meetup.objects.all()
     return render(request, 'meetups/index.html', {'meetups': meetups})
 
 
 def meetup_details(request, meetup_slug):
-    print(meetup_slug)
-    selected_meetup = {
-        'title': 'A First Meetup',
-        'description': 'This is the first meeting',
-    }
-    return render(request, 'meetups/meetup_details.html', {'meetup': selected_meetup})
+    try:
+        selected_meetup = Meetup.objects.get(slug=meetup_slug)
+        if request == 'GET':
+            registration_form = RegistrationForm()
+        else:
+            registration_form = RegistrationForm(request.POST)
+            if registration_form.is_valid():
+                user_email = registration_form.cleaned_data['email']
+                participant, _ = Participant.objects.get_or_create(
+                    email=user_email)
+                selected_meetup.participant.add(participant)
+                return redirect('confirm-registration', meetup_slug=meetup_slug)
+
+        return render(request, 'meetups/meetup_details.html', {'meetup': selected_meetup, 'meetup_found': True, 'form': registration_form})
+
+    except Exception as exc:
+        print(exc)
+        return render(request, 'meetups/meetup_details.html', {'meetup_found': False})
+
+
+def confirm_registration(request, meetup_slug):
+    meetup = Meetup.objects.get(slug=meetup_slug)
+    return render(request, 'meetups/registration_success.html', {'organizer_email': meetup.organizer_email})
